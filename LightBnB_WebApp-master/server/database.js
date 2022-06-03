@@ -1,5 +1,13 @@
 const properties = require('./json/properties.json');
 const users = require('./json/users.json');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  user: 'vagrant',
+  password: '123',
+  host: 'localhost',
+  database: 'vagrant'
+});
 
 /// Users
 
@@ -8,18 +16,24 @@ const users = require('./json/users.json');
  * @param {String} email The email of the user.
  * @return {Promise<{}>} A promise to the user.
  */
-const getUserWithEmail = function(email) {
-  let user;
-  for (const userId in users) {
-    user = users[userId];
-    if (user.email.toLowerCase() === email.toLowerCase()) {
-      break;
-    } else {
-      user = null;
-    }
-  }
-  return Promise.resolve(user);
-}
+ const getUserWithEmail = function(email) {
+  
+  return pool.query(`
+  SELECT *
+  FROM users
+  WHERE users.email = $1;
+  `, [email])
+    .then(res => {
+      if(res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    })
+    .catch (err => {
+      console.log('query error:', err)
+    });
+};
 exports.getUserWithEmail = getUserWithEmail;
 
 /**
@@ -28,7 +42,21 @@ exports.getUserWithEmail = getUserWithEmail;
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithId = function(id) {
-  return Promise.resolve(users[id]);
+  return pool.query(`
+  SELECT *
+  FROM users
+  WHERE users.id = $1;
+  `, [id])
+    .then(res => {
+      if(res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    })
+    .catch (err => {
+      console.log('query error:', err)
+    });
 }
 exports.getUserWithId = getUserWithId;
 
@@ -39,11 +67,23 @@ exports.getUserWithId = getUserWithId;
  * @return {Promise<{}>} A promise to the user.
  */
 const addUser =  function(user) {
-  const userId = Object.keys(users).length + 1;
-  user.id = userId;
-  users[userId] = user;
-  return Promise.resolve(user);
+  return pool.query(`
+  INSERT INTO users (name, email, password)
+  VALUES ($1, $2, $3)
+  RETURNING *;
+  `, [user.name, user.email, user.password])
+    .then(res => {
+      if(res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    })
+    .catch (err => {
+      console.log('query error:', err)
+    });
 }
+
 exports.addUser = addUser;
 
 /// Reservations
@@ -66,13 +106,17 @@ exports.getAllReservations = getAllReservations;
  * @param {*} limit The number of results to return.
  * @return {Promise<[{}]>}  A promise to the properties.
  */
-const getAllProperties = function(options, limit = 10) {
-  const limitedProperties = {};
-  for (let i = 1; i <= limit; i++) {
-    limitedProperties[i] = properties[i];
-  }
-  return Promise.resolve(limitedProperties);
-}
+ const getAllProperties = (options, limit = 10) => {
+  return pool
+    .query(`SELECT * FROM properties LIMIT $1`, [limit])
+    .then((result) => {
+      console.log(result.rows);
+      return result.rows;
+    })
+    .catch((err) => {
+      console.log(err.message);
+    });
+};
 exports.getAllProperties = getAllProperties;
 
 
@@ -82,9 +126,18 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
-}
+  return pool
+    .query(`
+    INSERT INTO properties (owner_id, title, description, thumbnail_photo_url, cover_photo_url, cost_per_night, parking_spaces, number_of_bathrooms, number_of_bedrooms, country, street, city, province, post_code)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    RETURNING *;
+    `, [property.owner_id, property.title, property.description, property.thumbnail_photo_url, property.cover_photo_url, property.cost_per_night, property.parking_spaces, property.number_of_bathrooms, property.number_of_bedrooms, property.country, property.street, property.city, property.province, property.post_code])
+    .then((result) => {
+      console.log(result.rows);
+      return result.rows;
+    })
+    .catch((err) => {
+      console.log(err.message);
+    });
+};
 exports.addProperty = addProperty;
